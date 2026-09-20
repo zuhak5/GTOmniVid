@@ -7,9 +7,14 @@ from pydantic import BaseModel, Field
 
 class FormatTier(str, Enum):
     """Normalized quality and stream tiers for GTOmniVid."""
+    P2160 = "2160p"
+    P1440 = "1440p"
     P1080 = "1080p"
     P720 = "720p"
     P480 = "480p"
+    P360 = "360p"
+    P240 = "240p"
+    P144 = "144p"
     AUDIO = "audio"
     DIRECT = "direct_stream"
 

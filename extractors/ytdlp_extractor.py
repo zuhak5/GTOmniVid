@@ -84,14 +84,35 @@ class YtdlpExtractor:
         best_audio = self._find_best_audio(raw_formats, duration)
         audio_size = best_audio.get("filesize_calc", 0) if best_audio else 0
 
-        # Group video streams by target vertical resolutions
-        v_1080: Optional[Dict[str, Any]] = None
-        v_720: Optional[Dict[str, Any]] = None
-        v_480: Optional[Dict[str, Any]] = None
+        # Standard resolution brackets ordered from highest to lowest:
+        # (threshold, FormatTier, default_label)
+        BRACKETS = [
+            (2160, FormatTier.P2160, "4K 2160p"),
+            (1440, FormatTier.P1440, "2K 1440p"),
+            (1080, FormatTier.P1080, "1080p Full HD"),
+            (720, FormatTier.P720, "720p HD"),
+            (480, FormatTier.P480, "480p SD"),
+            (360, FormatTier.P360, "360p"),
+            (240, FormatTier.P240, "240p"),
+            (144, FormatTier.P144, "144p"),
+        ]
+
+        def _is_better_stream(new_f: Dict[str, Any], current_f: Optional[Dict[str, Any]]) -> bool:
+            if current_f is None:
+                return True
+            new_is_mp4 = new_f.get("ext") == "mp4"
+            cur_is_mp4 = current_f.get("ext") == "mp4"
+            if new_is_mp4 and not cur_is_mp4:
+                return True
+            if cur_is_mp4 and not new_is_mp4:
+                return False
+            return new_f.get("filesize_calc", 0) > current_f.get("filesize_calc", 0)
+
+        # Mapping: tier -> (best_format_dict, label_string)
+        tier_formats: Dict[FormatTier, tuple[Dict[str, Any], str]] = {}
         direct_progressive: Optional[Dict[str, Any]] = None
 
         for f in raw_formats:
-            height = f.get("height") or 0
             vcodec = f.get("vcodec") or "none"
             acodec = f.get("acodec") or "none"
             ext = f.get("ext") or "mp4"
@@ -108,64 +129,55 @@ class YtdlpExtractor:
                 if direct_progressive is None or (f.get("filesize_calc", 0) > direct_progressive.get("filesize_calc", 0)):
                     direct_progressive = f
 
-            # Classify into standard tiers (preferring MP4/H264 containers)
-            if height >= 1080:
-                if v_1080 is None or (ext == "mp4" and v_1080.get("ext") != "mp4"):
-                    v_1080 = f
-            elif height >= 720:
-                if v_720 is None or (ext == "mp4" and v_720.get("ext") != "mp4"):
-                    v_720 = f
-            elif height >= 480 or (v_480 is None and height >= 360):
-                if v_480 is None or (ext == "mp4" and v_480.get("ext") != "mp4"):
-                    v_480 = f
+            # Calculate effective resolution (supports landscape and portrait/reels)
+            h = f.get("height") or 0
+            w = f.get("width") or 0
+            eff_res = min(h, w) if (h > 0 and w > 0) else (h or w or 0)
+
+            if eff_res <= 0:
+                continue
+
+            # Classify into standard tier
+            for threshold, tier, default_label in BRACKETS:
+                if eff_res >= threshold:
+                    cur_stream = tier_formats.get(tier, (None, ""))[0]
+                    if _is_better_stream(f, cur_stream):
+                        label = f"{eff_res}p" if eff_res not in (2160, 1440, 1080, 720, 480) else default_label
+                        tier_formats[tier] = (f, label)
+                    break
+            else:
+                # Below 144p but > 0: classify as 144p
+                cur_stream = tier_formats.get(FormatTier.P144, (None, ""))[0]
+                if _is_better_stream(f, cur_stream):
+                    tier_formats[FormatTier.P144] = (f, f"{eff_res}p" if eff_res != 144 else "144p")
 
         options: List[FormatOption] = []
 
-        # Tier: 1080p Full HD (only if combined size <= 45MB to respect Telegram 50MB budget)
-        if v_1080:
-            requires_remux = v_1080.get("acodec") == "none"
-            comb_size = v_1080["filesize_calc"] + (audio_size if requires_remux else 0)
-            fmt_id = f"{v_1080['format_id']}+{best_audio['format_id']}" if (requires_remux and best_audio) else str(v_1080["format_id"])
-            if comb_size <= 45 * 1024 * 1024:
-                options.append(FormatOption(
-                    format_id=fmt_id,
-                    tier=FormatTier.P1080,
-                    resolution_label="1080p Full HD",
-                    ext="mp4",
-                    estimated_size_bytes=comb_size,
-                    video_url=v_1080.get("url"),
-                    audio_url=best_audio.get("url") if best_audio else None,
-                    requires_remux=requires_remux,
-                ))
+        # Build options for each resolution tier (highest to lowest)
+        for threshold, tier, default_label in BRACKETS:
+            if tier not in tier_formats:
+                continue
 
-        # Tier: 720p HD
-        if v_720:
-            requires_remux = v_720.get("acodec") == "none"
-            comb_size = v_720["filesize_calc"] + (audio_size if requires_remux else 0)
-            fmt_id = f"{v_720['format_id']}+{best_audio['format_id']}" if (requires_remux and best_audio) else str(v_720["format_id"])
+            v_fmt, label = tier_formats[tier]
+            requires_remux = v_fmt.get("acodec") == "none"
+            comb_size = v_fmt["filesize_calc"] + (audio_size if requires_remux else 0)
+
+            # Safeguard Telegram 50 MB limit: only offer upload options <= 45 MB
+            if comb_size > 45 * 1024 * 1024:
+                continue
+
+            fmt_id = (
+                f"{v_fmt['format_id']}+{best_audio['format_id']}"
+                if (requires_remux and best_audio)
+                else str(v_fmt["format_id"])
+            )
             options.append(FormatOption(
                 format_id=fmt_id,
-                tier=FormatTier.P720,
-                resolution_label="720p HD",
+                tier=tier,
+                resolution_label=label,
                 ext="mp4",
                 estimated_size_bytes=comb_size,
-                video_url=v_720.get("url"),
-                audio_url=best_audio.get("url") if best_audio else None,
-                requires_remux=requires_remux,
-            ))
-
-        # Tier: 480p SD (Mobile Tier)
-        if v_480:
-            requires_remux = v_480.get("acodec") == "none"
-            comb_size = v_480["filesize_calc"] + (audio_size if requires_remux else 0)
-            fmt_id = f"{v_480['format_id']}+{best_audio['format_id']}" if (requires_remux and best_audio) else str(v_480["format_id"])
-            options.append(FormatOption(
-                format_id=fmt_id,
-                tier=FormatTier.P480,
-                resolution_label="480p SD",
-                ext="mp4",
-                estimated_size_bytes=comb_size,
-                video_url=v_480.get("url"),
+                video_url=v_fmt.get("url"),
                 audio_url=best_audio.get("url") if best_audio else None,
                 requires_remux=requires_remux,
             ))

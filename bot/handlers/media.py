@@ -69,10 +69,17 @@ async def handle_media_url(
                 )
                 return
         elif current_tier == EgressTier.WARNING:
-            # Prioritize Audio and 480p SD; force direct link for large video
+            # Prioritize lower resolutions (<= 480p), Audio, and Direct Link to preserve remaining budget
             available_formats = [
                 f for f in available_formats
-                if f.tier in (FormatTier.AUDIO, FormatTier.P480, FormatTier.DIRECT)
+                if f.tier in (
+                    FormatTier.AUDIO,
+                    FormatTier.DIRECT,
+                    FormatTier.P480,
+                    FormatTier.P360,
+                    FormatTier.P240,
+                    FormatTier.P144,
+                )
             ]
 
         # Generate short cache key and cache formats

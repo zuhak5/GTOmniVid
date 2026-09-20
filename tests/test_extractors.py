@@ -295,3 +295,75 @@ def test_silent_video_omits_audio_tier():
 
     assert FormatTier.AUDIO not in tiers
 
+
+def test_all_standard_resolutions_supported():
+    """Verify all resolution tiers from 4K (2160p) down to 144p are supported."""
+    extractor = YtdlpExtractor()
+    duration = 20  # short clip so high resolutions fit within 45MB limit
+
+    raw_formats = [
+        # Audio
+        {"format_id": "140", "vcodec": "none", "acodec": "aac", "filesize": 1 * 1024 * 1024, "ext": "m4a"},
+        # 4K (2160p)
+        {"format_id": "313", "vcodec": "vp9", "acodec": "none", "height": 2160, "width": 3840, "filesize": 35 * 1024 * 1024, "ext": "webm"},
+        # 2K (1440p)
+        {"format_id": "271", "vcodec": "vp9", "acodec": "none", "height": 1440, "width": 2560, "filesize": 20 * 1024 * 1024, "ext": "webm"},
+        # 1080p Full HD
+        {"format_id": "137", "vcodec": "h264", "acodec": "none", "height": 1080, "width": 1920, "filesize": 12 * 1024 * 1024, "ext": "mp4"},
+        # 720p HD
+        {"format_id": "136", "vcodec": "h264", "acodec": "none", "height": 720, "width": 1280, "filesize": 7 * 1024 * 1024, "ext": "mp4"},
+        # 480p SD
+        {"format_id": "135", "vcodec": "h264", "acodec": "none", "height": 480, "width": 854, "filesize": 4 * 1024 * 1024, "ext": "mp4"},
+        # 360p
+        {"format_id": "134", "vcodec": "h264", "acodec": "none", "height": 360, "width": 640, "filesize": 2 * 1024 * 1024, "ext": "mp4"},
+        # 240p
+        {"format_id": "133", "vcodec": "h264", "acodec": "none", "height": 240, "width": 426, "filesize": 1 * 1024 * 1024, "ext": "mp4"},
+        # 144p
+        {"format_id": "160", "vcodec": "h264", "acodec": "none", "height": 144, "width": 256, "filesize": 500 * 1024, "ext": "mp4"},
+    ]
+
+    options = extractor.aggregate_formats(raw_formats, duration, platform="youtube")
+    tiers = {opt.tier: opt for opt in options}
+
+    # Verify all 8 resolution tiers are present
+    expected_tiers = [
+        (FormatTier.P2160, "4K 2160p"),
+        (FormatTier.P1440, "2K 1440p"),
+        (FormatTier.P1080, "1080p Full HD"),
+        (FormatTier.P720, "720p HD"),
+        (FormatTier.P480, "480p SD"),
+        (FormatTier.P360, "360p"),
+        (FormatTier.P240, "240p"),
+        (FormatTier.P144, "144p"),
+    ]
+
+    for tier, label in expected_tiers:
+        assert tier in tiers, f"Expected {tier} to be present in options"
+        assert tiers[tier].resolution_label == label
+
+    # Audio tier must also be present
+    assert FormatTier.AUDIO in tiers
+
+
+def test_portrait_reels_effective_resolution():
+    """Verify portrait/vertical videos (Reels/Shorts/TikTok) resolve effective resolution accurately."""
+    extractor = YtdlpExtractor()
+    duration = 15
+
+    raw_formats = [
+        # 1080x1920 (Vertical 1080p)
+        {"format_id": "reel-1080", "vcodec": "h264", "acodec": "aac", "width": 1080, "height": 1920, "filesize": 10 * 1024 * 1024, "ext": "mp4", "url": "https://cdn.net/1080.mp4"},
+        # 720x1280 (Vertical 720p)
+        {"format_id": "reel-720", "vcodec": "h264", "acodec": "aac", "width": 720, "height": 1280, "filesize": 5 * 1024 * 1024, "ext": "mp4", "url": "https://cdn.net/720.mp4"},
+    ]
+
+    options = extractor.aggregate_formats(raw_formats, duration, platform="instagram")
+    tiers = {opt.tier: opt for opt in options}
+
+    assert FormatTier.P1080 in tiers
+    assert tiers[FormatTier.P1080].resolution_label == "1080p Full HD"
+
+    assert FormatTier.P720 in tiers
+    assert tiers[FormatTier.P720].resolution_label == "720p HD"
+
+

@@ -37,6 +37,7 @@ def get_ytdlp_base_options(platform: str = "generic") -> Dict[str, Any]:
         # General extraction behavior
         "quiet": True,
         "no_warnings": True,
+        "noprogress": True,
         "nocheckcertificate": False,
         "socket_timeout": 20,
         "retries": 3,

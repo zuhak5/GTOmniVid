@@ -1,5 +1,6 @@
 """Unit tests for Security Shield & SSRF Guard (core/security.py)."""
 
+import asyncio
 import ipaddress
 import pytest
 from unittest.mock import patch
@@ -10,6 +11,7 @@ from core.security import (
     ProtocolNotAllowedError,
     SSRFError,
     identify_platform,
+    resolve_hostname_ips,
     validate_media_url,
     validate_url_syntax_and_domain,
     verify_ip_is_safe,
@@ -136,3 +138,16 @@ def test_identify_platform():
     assert identify_platform("https://fb.watch/test") == "facebook"
     assert identify_platform("https://facebook.com/reel/123") == "facebook"
     assert identify_platform("https://unknown.com/video") == "unknown"
+
+
+@pytest.mark.asyncio
+async def test_resolve_hostname_ips_timeout():
+    """Verify resolve_hostname_ips raises SSRFError on DNS timeout."""
+    async def mock_wait_for(fut, timeout):
+        fut.close()
+        raise asyncio.TimeoutError()
+
+    with patch("asyncio.wait_for", side_effect=mock_wait_for):
+        with pytest.raises(SSRFError, match="timed out"):
+            await resolve_hostname_ips("tiktok.com")
+

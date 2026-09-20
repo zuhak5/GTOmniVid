@@ -290,6 +290,7 @@ class YtdlpExtractor:
             "format": effective_format,
             "paths": {"home": str(output_dir)},
             "outtmpl": {"default": "%(id)s_%(format_id)s.%(ext)s"},
+            "noprogress": True,
         })
 
         if progress_hook:

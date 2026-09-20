@@ -101,8 +101,18 @@ async def handle_media_url(
 
     except Exception as err:
         logger.error("Error inspecting media for %s: %s", clean_url, err)
-        await status_msg.edit_text(
-            f"❌ <b>Extraction failed:</b> {err}\n"
-            "Please check that the link is valid, public, and supported.",
-            parse_mode="HTML"
-        )
+        err_lower = str(err).lower()
+        if "no video" in err_lower or "there is no video" in err_lower:
+            await status_msg.edit_text(
+                "📷 <b>Photo / Image Post Detected</b>\n\n"
+                "This post contains photos/images, not a video. "
+                "GTOmniVid is optimized to download videos, Reels, Shorts, and audio tracks.",
+                parse_mode="HTML"
+            )
+        else:
+            await status_msg.edit_text(
+                "❌ <b>Extraction failed.</b>\n"
+                "The media could not be retrieved. Please check that the link is valid, "
+                "public, and not private or deleted.",
+                parse_mode="HTML"
+            )

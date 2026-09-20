@@ -116,13 +116,18 @@ def validate_url_syntax_and_domain(url: str) -> ParseResult:
 
 
 async def resolve_hostname_ips(hostname: str) -> List[ipaddress.IPv4Address | ipaddress.IPv6Address]:
-    """Resolves hostname to IP addresses asynchronously."""
+    """Resolves hostname to IP addresses asynchronously with a fast-fail 3.0s timeout."""
     loop = asyncio.get_running_loop()
     try:
         # getaddrinfo with family 0 queries both AF_INET and AF_INET6
-        addr_info = await loop.getaddrinfo(
-            hostname, None, family=socket.AF_UNSPEC, type=socket.SOCK_STREAM
+        addr_info = await asyncio.wait_for(
+            loop.getaddrinfo(
+                hostname, None, family=socket.AF_UNSPEC, type=socket.SOCK_STREAM
+            ),
+            timeout=3.0
         )
+    except asyncio.TimeoutError as err:
+        raise SSRFError(f"DNS resolution timed out for hostname '{hostname}'") from err
     except socket.gaierror as err:
         raise SSRFError(f"DNS resolution failed for hostname '{hostname}': {err}") from err
 

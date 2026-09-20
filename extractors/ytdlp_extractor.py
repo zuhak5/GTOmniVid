@@ -266,9 +266,28 @@ class YtdlpExtractor:
         """Asynchronously downloads the chosen media stream into the target workspace."""
         platform = identify_platform(url)
         opts = get_ytdlp_base_options(platform)
+        # Ensure robust format selection across all platforms and environments:
+        # If ffmpeg is absent or format IDs are ephemeral (e.g. Facebook/Instagram DASH),
+        # gracefully fallback to progressive single-container streams (hd/sd/best).
+        import shutil
+        has_ffmpeg = shutil.which("ffmpeg") is not None
+
+        if not has_ffmpeg and "+" in format_selector:
+            if platform == "facebook":
+                effective_format = "hd/sd/best[ext=mp4]/best"
+            else:
+                effective_format = "best[ext=mp4]/best"
+        else:
+            if platform == "facebook":
+                effective_format = f"{format_selector}/hd/sd/best[ext=mp4]/best"
+            elif format_selector in ("audio", "bestaudio") or format_selector.endswith("a"):
+                effective_format = f"{format_selector}/bestaudio/best"
+            else:
+                effective_format = f"{format_selector}/best[ext=mp4]/best"
+
         opts.update({
             "skip_download": False,
-            "format": format_selector,
+            "format": effective_format,
             "paths": {"home": str(output_dir)},
             "outtmpl": {"default": "%(id)s_%(format_id)s.%(ext)s"},
         })
@@ -276,7 +295,7 @@ class YtdlpExtractor:
         if progress_hook:
             opts["progress_hooks"] = [progress_hook]
 
-        logger.info("Starting yt-dlp download: format=%s, output_dir=%s", format_selector, output_dir)
+        logger.info("Starting yt-dlp download: requested=%s, effective=%s, output_dir=%s", format_selector, effective_format, output_dir)
         try:
             await asyncio.to_thread(self._run_ytdlp_download, url, opts)
         except Exception as err:

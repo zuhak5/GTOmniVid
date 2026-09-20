@@ -6,6 +6,8 @@ from aiogram.client.default import DefaultBotProperties
 from aiogram.enums import ParseMode
 from aiogram.fsm.storage.memory import MemoryStorage
 
+from aiogram.client.session.aiohttp import AiohttpSession
+
 from bot.handlers import callbacks_router, commands_router, media_router
 from bot.middlewares.error_handler import GlobalErrorHandler
 from bot.middlewares.rate_limit import AntiFloodMiddleware
@@ -24,8 +26,10 @@ def create_bot_and_dispatcher(
     extractor: YtdlpExtractor
 ) -> tuple[Bot, Dispatcher]:
     """Configures Bot instance, Dispatcher, middlewares, and routers."""
+    session = AiohttpSession(timeout=300.0)
     bot = Bot(
         token=settings.BOT_TOKEN,
+        session=session,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML)
     )
 

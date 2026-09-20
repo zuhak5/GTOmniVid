@@ -26,7 +26,15 @@ class GlobalErrorHandler(BaseMiddleware):
             return await handler(event, data)
         except SecurityError as sec_err:
             logger.warning("Security violation: %s", sec_err)
-            await self._respond_error(event, "⛔ Prohibited or unsupported link. Supported: YouTube, TikTok, Instagram, Facebook.")
+            err_msg = str(sec_err)
+            if "DNS resolution failed" in err_msg:
+                await self._respond_error(
+                    event,
+                    "⚠️ Could not resolve domain name (DNS lookup failed). "
+                    "If using short links (like vt.tiktok.com), please try sending the full browser link."
+                )
+            else:
+                await self._respond_error(event, "⛔ Prohibited or unsupported link. Supported: YouTube, TikTok, Instagram, Facebook.")
         except QuotaExceededError:
             await self._respond_error(
                 event,

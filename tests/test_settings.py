@@ -20,7 +20,7 @@ def test_settings_defaults():
 
 def test_settings_computed_properties():
     """Verify megabyte to byte conversions for Always-Free limits."""
-    settings = Settings()
+    settings = Settings(_env_file=None)
     assert settings.egress_hard_cap_bytes == 900 * 1024 * 1024
     assert settings.egress_warn_cap_bytes == 850 * 1024 * 1024
     assert settings.min_free_disk_bytes == 3000 * 1024 * 1024

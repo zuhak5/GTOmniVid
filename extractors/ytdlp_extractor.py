@@ -184,7 +184,7 @@ class YtdlpExtractor:
                 requires_remux=best_fmt.get("acodec") == "none",
             ))
 
-        # Tier: Audio (M4A) — Lossless native audio stream
+        # Tier: Audio (M4A) — Lossless native audio stream or extracted from progressive stream
         if best_audio:
             options.append(FormatOption(
                 format_id=str(best_audio["format_id"]),
@@ -194,6 +194,29 @@ class YtdlpExtractor:
                 estimated_size_bytes=audio_size,
                 audio_url=best_audio.get("url"),
                 requires_remux=False,
+            ))
+        elif raw_formats:
+            # Check if all streams are explicitly marked silent (vcodec present, acodec == "none")
+            is_silent = all((f.get("acodec") == "none" and f.get("vcodec") != "none") for f in raw_formats)
+            if not is_silent:
+                est_audio_size = int((128 * 1000 / 8) * duration) if duration > 0 else 2 * 1024 * 1024
+                options.append(FormatOption(
+                    format_id="bestaudio/best",
+                    tier=FormatTier.AUDIO,
+                    resolution_label="Audio (M4A)",
+                    ext="m4a",
+                    estimated_size_bytes=est_audio_size,
+                    requires_remux=True,
+                ))
+        elif not raw_formats:
+            est_audio_size = int((128 * 1000 / 8) * duration) if duration > 0 else 2 * 1024 * 1024
+            options.append(FormatOption(
+                format_id="bestaudio/best",
+                tier=FormatTier.AUDIO,
+                resolution_label="Audio (M4A)",
+                ext="m4a",
+                estimated_size_bytes=est_audio_size,
+                requires_remux=True,
             ))
 
         # Tier: Direct Stream Link (0 MB Egress)
@@ -278,9 +301,17 @@ class YtdlpExtractor:
             else:
                 effective_format = "best[ext=mp4]/best"
         else:
+            is_audio_selector = (
+                "audio" in format_selector
+                or format_selector in ("ba", "ba/b")
+                or format_selector.endswith("a")
+            )
             if platform == "facebook":
-                effective_format = f"{format_selector}/hd/sd/best[ext=mp4]/best"
-            elif format_selector in ("audio", "bestaudio") or format_selector.endswith("a"):
+                if is_audio_selector:
+                    effective_format = f"{format_selector}/bestaudio/hd/sd/best[ext=mp4]/best"
+                else:
+                    effective_format = f"{format_selector}/hd/sd/best[ext=mp4]/best"
+            elif is_audio_selector:
                 effective_format = f"{format_selector}/bestaudio/best"
             else:
                 effective_format = f"{format_selector}/best[ext=mp4]/best"

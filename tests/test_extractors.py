@@ -168,6 +168,14 @@ def test_tiktok_progressive_aggregation():
     direct = tiers[FormatTier.DIRECT]
     assert direct.direct_stream_url == "https://tiktok-cdn.net/video.mp4"
 
+    # Audio tier must also be available from progressive stream
+    assert FormatTier.AUDIO in tiers
+    audio = tiers[FormatTier.AUDIO]
+    assert audio.tier == FormatTier.AUDIO
+    assert audio.ext == "m4a"
+    assert audio.format_id == "bestaudio/best"
+    assert audio.estimated_size_bytes > 0
+
 
 def test_1080p_exceeding_45mb_omitted():
     """Verify 1080p option is omitted from upload list if size > 45MB (safeguards 50MB limit)."""
@@ -231,3 +239,59 @@ def test_ytdlp_base_options_structure():
 
     opts_tiktok = get_ytdlp_base_options("tiktok")
     assert "iPhone" in opts_tiktok["user_agent"]
+
+
+def test_facebook_progressive_audio_aggregation():
+    """Verify Facebook progressive streams (SD/HD) provide an Audio tier."""
+    extractor = YtdlpExtractor()
+    duration = 30
+    fb_formats = [
+        {
+            "format_id": "sd",
+            "vcodec": "h264",
+            "acodec": "aac",
+            "height": 480,
+            "ext": "mp4",
+            "filesize": 5 * 1024 * 1024,
+            "url": "https://fb.com/sd.mp4"
+        },
+        {
+            "format_id": "hd",
+            "vcodec": "h264",
+            "acodec": "aac",
+            "height": 720,
+            "ext": "mp4",
+            "filesize": 12 * 1024 * 1024,
+            "url": "https://fb.com/hd.mp4"
+        }
+    ]
+    options = extractor.aggregate_formats(fb_formats, duration, platform="facebook")
+    tiers = {opt.tier: opt for opt in options}
+
+    assert FormatTier.AUDIO in tiers
+    audio = tiers[FormatTier.AUDIO]
+    assert audio.tier == FormatTier.AUDIO
+    assert audio.ext == "m4a"
+    assert audio.format_id == "bestaudio/best"
+
+
+def test_silent_video_omits_audio_tier():
+    """Verify explicitly silent videos (no audio track) do not show an Audio option."""
+    extractor = YtdlpExtractor()
+    duration = 10
+    silent_formats = [
+        {
+            "format_id": "video-only",
+            "vcodec": "h264",
+            "acodec": "none",
+            "height": 720,
+            "ext": "mp4",
+            "filesize": 3 * 1024 * 1024,
+            "url": "https://cdn.net/silent.mp4"
+        }
+    ]
+    options = extractor.aggregate_formats(silent_formats, duration, platform="youtube")
+    tiers = {opt.tier: opt for opt in options}
+
+    assert FormatTier.AUDIO not in tiers
+

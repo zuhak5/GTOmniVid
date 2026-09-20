@@ -110,3 +110,69 @@ def test_parse_ffprobe_data(tmp_path: Path):
     assert info.size_bytes == 20971520
     assert info.video_codec == "h264"
     assert info.audio_codec == "aac"
+
+
+@pytest.mark.asyncio
+async def test_extract_audio_lossless(tmp_path: Path):
+    """Verify extract_audio attempts lossless -c:a copy first."""
+    video = tmp_path / "video.mp4"
+    audio = tmp_path / "audio.m4a"
+    video.write_bytes(b"dummy video data")
+
+    mock_process = AsyncMock()
+    mock_process.returncode = 0
+    mock_process.communicate.return_value = (b"", b"")
+
+    async def fake_exec(*args, **kwargs):
+        audio.write_bytes(b"dummy audio m4a")
+        return mock_process
+
+    with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec) as mock_exec:
+            result = await FFmpegService.extract_audio(video, audio)
+            assert result == audio
+            assert mock_exec.call_count == 1
+            args = mock_exec.call_args[0]
+            assert "-vn" in args
+            assert "-c:a" in args
+            ca_idx = args.index("-c:a")
+            assert args[ca_idx + 1] == "copy"
+
+
+@pytest.mark.asyncio
+async def test_extract_audio_transcode_fallback(tmp_path: Path):
+    """Verify extract_audio falls back to AAC transcode if copy fails."""
+    video = tmp_path / "video.mp4"
+    audio = tmp_path / "audio.m4a"
+    video.write_bytes(b"dummy video data")
+
+    proc_fail = AsyncMock()
+    proc_fail.returncode = 1
+    proc_fail.communicate.return_value = (b"", b"Could not find tag for codec opus in stream")
+
+    proc_succ = AsyncMock()
+    proc_succ.returncode = 0
+    proc_succ.communicate.return_value = (b"", b"")
+
+    call_count = 0
+
+    async def fake_exec(*args, **kwargs):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            return proc_fail
+        audio.write_bytes(b"dummy transcoded audio")
+        return proc_succ
+
+    with patch("shutil.which", return_value="/usr/bin/ffmpeg"):
+        with patch("asyncio.create_subprocess_exec", side_effect=fake_exec) as mock_exec:
+            result = await FFmpegService.extract_audio(video, audio)
+            assert result == audio
+            assert mock_exec.call_count == 2
+            # Second call must be AAC transcode
+            args2 = mock_exec.call_args_list[1][0]
+            assert "-vn" in args2
+            ca_idx = args2.index("-c:a")
+            assert args2[ca_idx + 1] == "aac"
+            assert "-b:a" in args2
+

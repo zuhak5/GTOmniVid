@@ -9,6 +9,7 @@ Preserves 100% of e2-micro burstable CPU credits by strictly enforcing:
 import asyncio
 import json
 import logging
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Optional
@@ -76,6 +77,64 @@ class FFmpegService:
 
         output_size = output_path.stat().st_size if output_path.exists() else 0
         logger.info("FFmpeg remux successful: %s (size=%d bytes)", output_path, output_size)
+        return output_path
+
+    @staticmethod
+    async def extract_audio(
+        input_path: Path,
+        output_path: Path,
+        preferred_ext: str = "m4a"
+    ) -> Path:
+        """Extracts the audio stream from a media container into a clean audio file.
+        
+        Attempts lossless stream copy first (-vn -c:a copy). If that fails (e.g. incompatible
+        container for opus/vorbis audio), falls back to fast 128k AAC transcode.
+        """
+        if not shutil.which("ffmpeg"):
+            raise RemuxError("FFmpeg binary not found in system PATH")
+
+        # 1. Attempt lossless copy (-c:a copy)
+        cmd_copy: List[str] = [
+            "ffmpeg", "-y",
+            "-i", str(input_path),
+            "-vn",
+            "-c:a", "copy",
+            str(output_path)
+        ]
+        logger.debug("Executing FFmpeg lossless audio extract: %s", " ".join(cmd_copy))
+        process = await asyncio.create_subprocess_exec(
+            *cmd_copy,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        _, stderr = await process.communicate()
+
+        if process.returncode == 0 and output_path.exists() and output_path.stat().st_size > 0:
+            logger.info("FFmpeg lossless audio extract succeeded: %s (%d bytes)", output_path, output_path.stat().st_size)
+            return output_path
+
+        # 2. Fallback: Transcode to AAC (-c:a aac -b:a 128k) if copy failed
+        logger.warning("Lossless audio copy failed, attempting AAC transcode: %s", stderr.decode(errors="replace").strip()[:200])
+        cmd_transcode: List[str] = [
+            "ffmpeg", "-y",
+            "-i", str(input_path),
+            "-vn",
+            "-c:a", "aac",
+            "-b:a", "128k",
+            str(output_path)
+        ]
+        process2 = await asyncio.create_subprocess_exec(
+            *cmd_transcode,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        _, stderr2 = await process2.communicate()
+
+        if process2.returncode != 0 or not output_path.exists() or output_path.stat().st_size == 0:
+            err_msg = stderr2.decode(errors="replace").strip()
+            raise RemuxError(f"Audio extraction failed: {err_msg}")
+
+        logger.info("FFmpeg audio transcode succeeded: %s (%d bytes)", output_path, output_path.stat().st_size)
         return output_path
 
     @staticmethod

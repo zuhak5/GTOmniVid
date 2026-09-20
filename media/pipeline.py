@@ -91,10 +91,22 @@ class MediaPipeline:
             is_audio = selected_format.tier == FormatTier.AUDIO
 
             if is_audio:
-                # Audio-only stream
-                final_media_path = workspace_dir / f"audio.{selected_format.ext}"
-                if downloaded_file != final_media_path:
-                    downloaded_file.rename(final_media_path)
+                # Audio stream: extract clean audio track from container
+                audio_target = workspace_dir / f"audio.{selected_format.ext}"
+                if progress_callback:
+                    progress_callback("🎵 Finalizing audio stream...")
+
+                try:
+                    final_media_path = await self.ffmpeg.extract_audio(
+                        input_path=downloaded_file,
+                        output_path=audio_target,
+                        preferred_ext=selected_format.ext
+                    )
+                except Exception as extract_err:
+                    logger.warning("FFmpeg audio extraction skipped or failed, using downloaded file: %s", extract_err)
+                    if downloaded_file != audio_target:
+                        downloaded_file.rename(audio_target)
+                    final_media_path = audio_target
             else:
                 # Video stream: enforce -c copy -movflags +faststart for native Telegram streaming
                 remux_target = workspace_dir / "output.mp4"
@@ -111,7 +123,7 @@ class MediaPipeline:
                     logger.warning("Remux failed or not needed, using original: %s", remux_err)
                     final_media_path = downloaded_file
 
-            # 5. Extract thumbnail and stream metrics for video
+            # 5. Extract thumbnail and stream metrics
             thumb_path: Optional[Path] = None
             info: Optional[MediaStreamInfo] = None
 
@@ -132,11 +144,17 @@ class MediaPipeline:
                         size_bytes=final_media_path.stat().st_size if final_media_path.exists() else 0
                     )
             else:
-                info = MediaStreamInfo(
-                    duration_seconds=0,
-                    size_bytes=final_media_path.stat().st_size if final_media_path.exists() else 0,
-                    audio_codec=selected_format.ext
-                )
+                try:
+                    info = await self.ffmpeg.inspect_media(final_media_path)
+                except Exception as probe_err:
+                    logger.warning("Audio probe skipped or failed: %s", probe_err)
+                    info = MediaStreamInfo(
+                        duration_seconds=0,
+                        size_bytes=final_media_path.stat().st_size if final_media_path.exists() else 0,
+                        audio_codec=selected_format.ext
+                    )
+                if not info.audio_codec:
+                    info.audio_codec = selected_format.ext
 
             # 6. Yield prepared artifacts to caller (e.g. Telegram Uploader)
             yield PipelineResult(

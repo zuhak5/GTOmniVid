@@ -128,11 +128,14 @@ class TelegramUploader:
 
         caption = f"🎬 <b>{title}</b>\n\n⚡ <i>Delivered via GTOmniVid</i>"
 
+        duration = stream_info.duration_seconds if stream_info else None
+
         try:
             if is_audio:
                 await self.bot.send_audio(
                     chat_id=chat_id,
                     audio=media_input,
+                    duration=duration,
                     title=title,
                     caption=caption,
                     parse_mode="HTML"

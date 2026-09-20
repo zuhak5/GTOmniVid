@@ -8,6 +8,7 @@ Type=simple
 User=zulfiqarabd_gmail_com
 Group=zulfiqarabd_gmail_com
 WorkingDirectory=/opt/gtomnivid
+ExecStartPre=+/bin/mkdir -p -m 0777 /tmp/tg_bot
 ExecStart=/opt/gtomnivid/venv/bin/python main.py
 Restart=always
 RestartSec=5s
@@ -28,7 +29,7 @@ SyslogIdentifier=gtomnivid
 NoNewPrivileges=true
 ProtectSystem=full
 PrivateTmp=false
-ReadWritePaths=/opt/gtomnivid /tmp/tg_bot
+ReadWritePaths=/opt/gtomnivid -/tmp/tg_bot
 
 [Install]
 WantedBy=multi-user.target

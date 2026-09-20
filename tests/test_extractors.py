@@ -220,6 +220,26 @@ def test_1080p_exceeding_45mb_omitted():
     assert FormatTier.P720 in tiers
 
 
+def test_audio_exceeding_45mb_omitted():
+    """Verify audio track exceeding 45 MB is omitted from upload tiers."""
+    extractor = YtdlpExtractor()
+    duration = 3600  # 1 hour
+    raw_formats = [
+        {
+            "format_id": "140",
+            "vcodec": "none",
+            "acodec": "aac",
+            "ext": "m4a",
+            "filesize": 48 * 1024 * 1024,  # 48 MB (> 45 MB)
+            "url": "https://googlevideo.com/audio_huge"
+        }
+    ]
+    options = extractor.aggregate_formats(raw_formats, duration, platform="youtube")
+    tiers = {opt.tier: opt for opt in options}
+    assert FormatTier.AUDIO not in tiers
+
+
+
 def test_stream_size_calculation_fallback():
     """Verify size calculation falls back to bitrate and duration when filesize is missing."""
     extractor = YtdlpExtractor()
@@ -235,7 +255,7 @@ def test_ytdlp_base_options_structure():
     opts_yt = get_ytdlp_base_options("youtube")
     assert opts_yt["quiet"] is True
     assert opts_yt["noplaylist"] is True
-    assert "youtube" in opts_yt.get("extractor_args", {})
+    assert opts_yt["prefer_ffmpeg"] is True
 
     opts_tiktok = get_ytdlp_base_options("tiktok")
     assert "iPhone" in opts_tiktok["user_agent"]

@@ -109,12 +109,13 @@ class QuotaLedger:
 
     async def evaluate_egress_tier(self) -> EgressTier:
         """Evaluates current monthly consumption against Always-Free thresholds."""
-        settings = get_settings()
         total_bytes = await self.get_monthly_egress_bytes()
+        hard_cap_bytes = self.egress_hard_cap_mb * 1024 * 1024
+        warn_cap_bytes = self.egress_warn_cap_mb * 1024 * 1024
 
-        if total_bytes >= settings.egress_hard_cap_bytes:
+        if total_bytes >= hard_cap_bytes:
             return EgressTier.HARD_CAP
-        if total_bytes >= settings.egress_warn_cap_bytes:
+        if total_bytes >= warn_cap_bytes:
             return EgressTier.WARNING
         return EgressTier.NORMAL
 

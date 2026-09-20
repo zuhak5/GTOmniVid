@@ -190,20 +190,22 @@ class YtdlpExtractor:
 
         # Fallback if no specific tiers matched: use best available progressive or DASH stream
         if not options and raw_formats:
-            best_fmt = raw_formats[-1]
-            fmt_size = self._calculate_stream_size(best_fmt, duration)
-            options.append(FormatOption(
-                format_id=str(best_fmt.get("format_id", "best")),
-                tier=FormatTier.P720,
-                resolution_label="Standard Quality",
-                ext=best_fmt.get("ext", "mp4"),
-                estimated_size_bytes=fmt_size,
-                video_url=best_fmt.get("url"),
-                requires_remux=best_fmt.get("acodec") == "none",
-            ))
+            for best_fmt in reversed(raw_formats):
+                fmt_size = self._calculate_stream_size(best_fmt, duration)
+                if fmt_size <= 45 * 1024 * 1024:
+                    options.append(FormatOption(
+                        format_id=str(best_fmt.get("format_id", "best")),
+                        tier=FormatTier.P720,
+                        resolution_label="Standard Quality",
+                        ext=best_fmt.get("ext", "mp4"),
+                        estimated_size_bytes=fmt_size,
+                        video_url=best_fmt.get("url"),
+                        requires_remux=best_fmt.get("acodec") == "none",
+                    ))
+                    break
 
         # Tier: Audio (M4A) — Lossless native audio stream or extracted from progressive stream
-        if best_audio:
+        if best_audio and audio_size <= 45 * 1024 * 1024:
             options.append(FormatOption(
                 format_id=str(best_audio["format_id"]),
                 tier=FormatTier.AUDIO,
@@ -218,6 +220,18 @@ class YtdlpExtractor:
             is_silent = all((f.get("acodec") == "none" and f.get("vcodec") != "none") for f in raw_formats)
             if not is_silent:
                 est_audio_size = int((128 * 1000 / 8) * duration) if duration > 0 else 2 * 1024 * 1024
+                if est_audio_size <= 45 * 1024 * 1024:
+                    options.append(FormatOption(
+                        format_id="bestaudio/best",
+                        tier=FormatTier.AUDIO,
+                        resolution_label="Audio (M4A)",
+                        ext="m4a",
+                        estimated_size_bytes=est_audio_size,
+                        requires_remux=True,
+                    ))
+        elif not raw_formats:
+            est_audio_size = int((128 * 1000 / 8) * duration) if duration > 0 else 2 * 1024 * 1024
+            if est_audio_size <= 45 * 1024 * 1024:
                 options.append(FormatOption(
                     format_id="bestaudio/best",
                     tier=FormatTier.AUDIO,
@@ -226,16 +240,6 @@ class YtdlpExtractor:
                     estimated_size_bytes=est_audio_size,
                     requires_remux=True,
                 ))
-        elif not raw_formats:
-            est_audio_size = int((128 * 1000 / 8) * duration) if duration > 0 else 2 * 1024 * 1024
-            options.append(FormatOption(
-                format_id="bestaudio/best",
-                tier=FormatTier.AUDIO,
-                resolution_label="Audio (M4A)",
-                ext="m4a",
-                estimated_size_bytes=est_audio_size,
-                requires_remux=True,
-            ))
 
         # Tier: Direct Stream Link (0 MB Egress)
         # Compatible with TikTok, Facebook, and verified progressive URLs
@@ -341,6 +345,8 @@ class YtdlpExtractor:
             "outtmpl": {"default": "%(id)s_%(format_id)s.%(ext)s"},
             "noprogress": True,
         })
+        if not is_audio_selector and has_ffmpeg:
+            opts["merge_output_format"] = "mp4"
 
         if progress_hook:
             opts["progress_hooks"] = [progress_hook]

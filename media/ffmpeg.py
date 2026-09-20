@@ -72,8 +72,26 @@ class FFmpegService:
 
         if process.returncode != 0:
             err_msg = stderr.decode(errors="replace").strip()
-            logger.error("FFmpeg remux failed (code %d): %s", process.returncode, err_msg)
-            raise RemuxError(f"Lossless remux failed: {err_msg}")
+            logger.warning("FFmpeg lossless copy remux failed, attempting copy video + transcode audio to AAC: %s", err_msg[:200])
+            cmd_fallback = ["ffmpeg", "-y", "-i", str(video_path)]
+            if audio_path and audio_path.exists():
+                cmd_fallback.extend(["-i", str(audio_path)])
+            cmd_fallback.extend([
+                "-c:v", "copy",
+                "-c:a", "aac",
+                "-b:a", "128k",
+                "-movflags", "+faststart",
+                str(output_path)
+            ])
+            fb_process = await asyncio.create_subprocess_exec(
+                *cmd_fallback,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            _, fb_stderr = await fb_process.communicate()
+            if fb_process.returncode != 0 or not output_path.exists() or output_path.stat().st_size == 0:
+                logger.error("FFmpeg remux fallback failed: %s", fb_stderr.decode(errors="replace").strip())
+                raise RemuxError(f"Lossless remux failed: {err_msg}")
 
         output_size = output_path.stat().st_size if output_path.exists() else 0
         logger.info("FFmpeg remux successful: %s (size=%d bytes)", output_path, output_size)
@@ -161,11 +179,27 @@ class FFmpegService:
         )
         stdout, stderr = await process.communicate()
 
-        if process.returncode != 0 or not thumb_path.exists():
-            err_msg = stderr.decode(errors="replace").strip()
-            logger.warning("Thumbnail extraction failed (code %d): %s", process.returncode, err_msg)
-            # Fail softly for thumbnail: return thumb_path even if not generated so caller can fallback
-            return thumb_path
+        if process.returncode != 0 or not thumb_path.exists() or thumb_path.stat().st_size == 0:
+            # Fallback: Seek to beginning (0.0s) in case media is shorter than timestamp_sec
+            cmd_zero = [
+                "ffmpeg", "-y",
+                "-ss", "0.0",
+                "-i", str(video_path),
+                "-vframes", "1",
+                "-q:v", "2",
+                str(thumb_path)
+            ]
+            proc_zero = await asyncio.create_subprocess_exec(
+                *cmd_zero,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+            await proc_zero.communicate()
+
+            if not thumb_path.exists() or thumb_path.stat().st_size == 0:
+                err_msg = stderr.decode(errors="replace").strip()
+                logger.warning("Thumbnail extraction failed (code %d): %s", process.returncode, err_msg)
+                return thumb_path
 
         logger.debug("Thumbnail extracted: %s", thumb_path)
         return thumb_path

@@ -62,14 +62,7 @@ def get_ytdlp_base_options(platform: str = "generic") -> Dict[str, Any]:
         opts["cookiefile"] = cookie_file
 
     # Platform-specific tweaks
-    if platform == "youtube":
-        opts["extractor_args"] = {
-            "youtube": {
-                "player_client": ["android", "web"],
-                "skip": ["hls", "dash"],
-            }
-        }
-    elif platform == "tiktok":
+    if platform == "tiktok":
         opts["user_agent"] = DEFAULT_MOBILE_USER_AGENT
     elif platform == "instagram":
         opts["user_agent"] = DEFAULT_MOBILE_USER_AGENT

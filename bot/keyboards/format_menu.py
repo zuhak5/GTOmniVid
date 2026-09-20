@@ -55,20 +55,25 @@ def build_format_keyboard(
     formats: List[FormatOption],
     short_key: str
 ) -> InlineKeyboardMarkup:
-    """Constructs dynamic inline buttons for each quality tier."""
+    """Constructs dynamic inline buttons for each quality tier in a clean compact grid."""
     buttons: List[List[InlineKeyboardButton]] = []
+    video_row: List[InlineKeyboardButton] = []
 
     for idx, opt in enumerate(formats):
         if opt.tier == FormatTier.DIRECT and opt.direct_stream_url:
-            # Direct Stream: create external URL button so Telegram client streams directly from CDN
+            if video_row:
+                buttons.append(video_row)
+                video_row = []
             buttons.append([
                 InlineKeyboardButton(
                     text=opt.button_label,
                     url=opt.direct_stream_url
                 )
             ])
-        else:
-            # Download tier: trigger callback query
+        elif opt.tier == FormatTier.AUDIO:
+            if video_row:
+                buttons.append(video_row)
+                video_row = []
             buttons.append([
                 InlineKeyboardButton(
                     text=opt.button_label,
@@ -79,6 +84,24 @@ def build_format_keyboard(
                     ).pack()
                 )
             ])
+        else:
+            # Video resolution tier: pair into 2-column rows
+            video_row.append(
+                InlineKeyboardButton(
+                    text=opt.button_label,
+                    callback_data=FormatCallbackData(
+                        action="dl",
+                        key=short_key,
+                        idx=idx
+                    ).pack()
+                )
+            )
+            if len(video_row) == 2:
+                buttons.append(video_row)
+                video_row = []
+
+    if video_row:
+        buttons.append(video_row)
 
     # Add Cancel button
     buttons.append([

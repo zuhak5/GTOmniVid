@@ -121,3 +121,76 @@ async def test_uploader_successful_video_delivery(tmp_path: Path):
         delivery_mode="upload"
     )
     mock_ledger.increment_user_quota.assert_called_once_with(user_id=200)
+
+
+@pytest.mark.asyncio
+async def test_uploader_fallback_to_document_on_send_video_failure(tmp_path: Path):
+    """Verify uploader falls back to send_document if Telegram send_video raises an error."""
+    mock_bot = MagicMock(spec=Bot)
+    mock_bot.edit_message_text = AsyncMock()
+    mock_bot.send_video = AsyncMock(side_effect=Exception("TelegramBadRequest: wrong format"))
+    mock_bot.send_document = AsyncMock()
+    mock_bot.delete_message = AsyncMock()
+
+    mock_ledger = MagicMock(spec=QuotaLedger)
+    mock_ledger.record_egress = AsyncMock()
+    mock_ledger.increment_user_quota = AsyncMock()
+
+    uploader = TelegramUploader(bot=mock_bot, quota_ledger=mock_ledger)
+
+    video_file = tmp_path / "exotic_video.mkv"
+    video_file.write_bytes(b"v" * (5 * 1024 * 1024))
+
+    delivered = await uploader.deliver_media(
+        chat_id=100,
+        user_id=200,
+        progress_msg_id=300,
+        media_path=video_file,
+        thumbnail_path=None,
+        stream_info=None,
+        title="Exotic MKV Video",
+        platform="youtube",
+        is_audio=False
+    )
+
+    assert delivered is True
+    mock_bot.send_video.assert_called_once()
+    mock_bot.send_document.assert_called_once()
+    mock_ledger.record_egress.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_uploader_audio_title_length_truncation(tmp_path: Path):
+    """Verify audio track title is safely truncated to 64 characters for Telegram Bot API."""
+    mock_bot = MagicMock(spec=Bot)
+    mock_bot.edit_message_text = AsyncMock()
+    mock_bot.send_audio = AsyncMock()
+    mock_bot.delete_message = AsyncMock()
+
+    mock_ledger = MagicMock(spec=QuotaLedger)
+    mock_ledger.record_egress = AsyncMock()
+    mock_ledger.increment_user_quota = AsyncMock()
+
+    uploader = TelegramUploader(bot=mock_bot, quota_ledger=mock_ledger)
+
+    audio_file = tmp_path / "audio.m4a"
+    audio_file.write_bytes(b"a" * (2 * 1024 * 1024))
+
+    long_title = "A" * 150  # 150 characters long
+    delivered = await uploader.deliver_media(
+        chat_id=100,
+        user_id=200,
+        progress_msg_id=300,
+        media_path=audio_file,
+        thumbnail_path=None,
+        stream_info=None,
+        title=long_title,
+        platform="youtube",
+        is_audio=True
+    )
+
+    assert delivered is True
+    mock_bot.send_audio.assert_called_once()
+    passed_title = mock_bot.send_audio.call_args[1]["title"]
+    assert len(passed_title) <= 64
+

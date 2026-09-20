@@ -128,36 +128,57 @@ class TelegramUploader:
 
         import html
         safe_title = html.escape((title or "Media")[:400])
-        caption = f"🎬 <b>{safe_title}</b>\n\n⚡ <i>Delivered via GTOmniVid</i>"
+        icon = "🎵" if is_audio else "🎬"
+        caption = f"{icon} <b>{safe_title}</b>\n\n⚡ <i>Delivered via GTOmniVid</i>"
 
         duration = stream_info.duration_seconds if stream_info else None
 
         try:
             if is_audio:
-                await self.bot.send_audio(
-                    chat_id=chat_id,
-                    audio=media_input,
-                    duration=duration,
-                    title=title,
-                    caption=caption,
-                    parse_mode="HTML"
-                )
+                try:
+                    await self.bot.send_audio(
+                        chat_id=chat_id,
+                        audio=media_input,
+                        duration=duration,
+                        title=(title or "Audio")[:64],
+                        caption=caption,
+                        parse_mode="HTML"
+                    )
+                except Exception as audio_err:
+                    logger.warning("send_audio failed (%s), falling back to send_document", audio_err)
+                    doc_input = FSInputFile(media_path, filename=media_path.name)
+                    await self.bot.send_document(
+                        chat_id=chat_id,
+                        document=doc_input,
+                        caption=caption,
+                        parse_mode="HTML"
+                    )
             else:
                 width = stream_info.width if stream_info else None
                 height = stream_info.height if stream_info else None
                 duration = stream_info.duration_seconds if stream_info else None
 
-                await self.bot.send_video(
-                    chat_id=chat_id,
-                    video=media_input,
-                    thumbnail=thumb_input,
-                    width=width,
-                    height=height,
-                    duration=duration,
-                    supports_streaming=True,
-                    caption=caption,
-                    parse_mode="HTML"
-                )
+                try:
+                    await self.bot.send_video(
+                        chat_id=chat_id,
+                        video=media_input,
+                        thumbnail=thumb_input,
+                        width=width,
+                        height=height,
+                        duration=duration,
+                        supports_streaming=True,
+                        caption=caption,
+                        parse_mode="HTML"
+                    )
+                except Exception as video_err:
+                    logger.warning("send_video failed (%s), falling back to send_document", video_err)
+                    doc_input = FSInputFile(media_path, filename=media_path.name)
+                    await self.bot.send_document(
+                        chat_id=chat_id,
+                        document=doc_input,
+                        caption=caption,
+                        parse_mode="HTML"
+                    )
 
             # Egress Accounting: Commit bytes to SQLite ledger & increment daily user count
             await self.quota_ledger.record_egress(

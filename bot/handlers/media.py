@@ -57,7 +57,15 @@ async def handle_media_url(
         metadata = await extractor.extract_info(clean_url)
 
         if not metadata.formats:
-            await status_msg.edit_text("❌ No playable formats found for this media link.")
+            if metadata.duration_seconds > 0:
+                await status_msg.edit_text(
+                    "⚠️ <b>Media Exceeds Telegram 50 MB Limit</b>\n\n"
+                    "All available stream tiers for this media exceed Telegram's 50 MB Bot API "
+                    "upload ceiling. Please select a shorter video or clip.",
+                    parse_mode="HTML"
+                )
+            else:
+                await status_msg.edit_text("❌ No playable formats found for this media link.")
             return
 
         # Filter formats if monthly bandwidth is restricted

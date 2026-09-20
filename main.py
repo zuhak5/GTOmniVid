@@ -78,15 +78,19 @@ async def main() -> None:
     async def worker_job_handler(job_request: JobRequest, cancel_event: asyncio.Event) -> bool:
         """Executes within Semaphore(1) lock to process and deliver media."""
         def progress_cb(text: str) -> None:
-            # Fire-and-forget status edit
-            asyncio.create_task(
-                bot.edit_message_text(
-                    text=f"⚙️ <i>{text}</i>",
-                    chat_id=job_request.chat_id,
-                    message_id=job_request.message_id,
-                    parse_mode="HTML"
-                )
-            )
+            # Fire-and-forget safe status edit
+            async def _safe_edit() -> None:
+                try:
+                    await bot.edit_message_text(
+                        text=f"⚙️ <i>{text}</i>",
+                        chat_id=job_request.chat_id,
+                        message_id=job_request.message_id,
+                        parse_mode="HTML"
+                    )
+                except Exception as edit_err:
+                    logger.debug("Suppressed progress_cb edit exception: %s", edit_err)
+
+            asyncio.create_task(_safe_edit())
 
         try:
             async with media_pipeline.process_job(

@@ -1,0 +1,33 @@
+[Unit]
+Description=GTOmniVid Telegram Media Bot
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/gtomnivid
+ExecStart=/opt/gtomnivid/venv/bin/python main.py
+Restart=always
+RestartSec=5s
+EnvironmentFile=/opt/gtomnivid/.env
+
+# Linux Resource Limits for GCP e2-micro (1 GB RAM Safeguard)
+LimitNOFILE=65535
+MemoryMax=850M
+MemoryHigh=750M
+CPUQuota=180%
+
+# Logging to journald
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gtomnivid
+
+# Security Sandboxing
+NoNewPrivileges=true
+ProtectSystem=full
+PrivateTmp=false
+
+[Install]
+WantedBy=multi-user.target

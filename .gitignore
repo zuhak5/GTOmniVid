@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Environment Configuration
+.env
+config/cookies.txt
+
+# Database and SQLite temporary journals
+data/*.db
+data/*.db-wal
+data/*.db-shm
+*.sqlite
+*.sqlite3
+
+# Scratch / Temporary directories
+scratch/
+/tmp/
+temp/
+
+# Testing and Coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+logs/
+
+# IDE / Editor configuration
+.vscode/
+.idea/
+*.swp
+*.swo

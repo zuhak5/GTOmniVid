@@ -82,7 +82,7 @@ async def test_egress_tier_transitions(tmp_path: Path):
 async def test_user_daily_quota_lifecycle(tmp_path: Path):
     """Verify user daily download quota incrementation and blocking on 4th download."""
     db_file = tmp_path / "test_ledger.db"
-    ledger = QuotaLedger(db_path=db_file)
+    ledger = QuotaLedger(db_path=db_file, user_daily_quota=3)
     await ledger.init_db()
 
     user_id = 42

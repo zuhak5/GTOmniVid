@@ -49,9 +49,9 @@ class Settings(BaseSettings):
     # Quota & Fair Usage Parameters
     USER_DAILY_QUOTA: int = Field(
         default=3,
-        ge=1,
-        le=100,
-        description="Maximum successful media downloads per user per calendar day"
+        ge=0,
+        le=1000000,
+        description="Maximum successful media downloads per user per calendar day (0 for unlimited)"
     )
 
     # Storage & System Resource Parameters

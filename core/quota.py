@@ -40,9 +40,18 @@ class EgressHardCapExceededError(Exception):
 class QuotaLedger:
     """Async database manager for egress accounting and user daily quotas."""
 
-    def __init__(self, db_path: Optional[Path] = None) -> None:
+    def __init__(
+        self,
+        db_path: Optional[Path] = None,
+        user_daily_quota: Optional[int] = None,
+        egress_hard_cap_mb: Optional[int] = None,
+        egress_warn_cap_mb: Optional[int] = None
+    ) -> None:
         settings = get_settings()
         self.db_path = db_path or settings.DB_PATH
+        self.user_daily_quota = user_daily_quota if user_daily_quota is not None else settings.USER_DAILY_QUOTA
+        self.egress_hard_cap_mb = egress_hard_cap_mb if egress_hard_cap_mb is not None else settings.EGRESS_HARD_CAP_MB
+        self.egress_warn_cap_mb = egress_warn_cap_mb if egress_warn_cap_mb is not None else settings.EGRESS_WARN_CAP_MB
 
     async def init_db(self) -> None:
         """Initializes database schema, WAL mode, and indexes."""
@@ -150,9 +159,10 @@ class QuotaLedger:
 
     async def can_user_download(self, user_id: int) -> bool:
         """Checks if the user has remaining downloads for today."""
-        settings = get_settings()
+        if self.user_daily_quota <= 0:
+            return True
         downloads = await self.get_user_daily_downloads(user_id)
-        return downloads < settings.USER_DAILY_QUOTA
+        return downloads < self.user_daily_quota
 
     async def increment_user_quota(self, user_id: int) -> int:
         """Increments today's download count for the user and returns the new total."""
@@ -171,19 +181,19 @@ class QuotaLedger:
 
     async def get_system_quota_summary(self, user_id: int) -> dict:
         """Returns comprehensive diagnostic status for user /quota command."""
-        settings = get_settings()
         user_downloads = await self.get_user_daily_downloads(user_id)
         monthly_bytes = await self.get_monthly_egress_bytes()
         current_tier = await self.evaluate_egress_tier()
 
         monthly_mb = monthly_bytes / (1024 * 1024)
-        hard_cap_mb = settings.EGRESS_HARD_CAP_MB
+        hard_cap_mb = self.egress_hard_cap_mb
+        is_unlimited = self.user_daily_quota <= 0
 
         return {
             "user_id": user_id,
             "user_downloads_today": user_downloads,
-            "user_daily_limit": settings.USER_DAILY_QUOTA,
-            "user_remaining_today": max(0, settings.USER_DAILY_QUOTA - user_downloads),
+            "user_daily_limit": "Unlimited" if is_unlimited else self.user_daily_quota,
+            "user_remaining_today": "Unlimited" if is_unlimited else max(0, self.user_daily_quota - user_downloads),
             "monthly_egress_mb": round(monthly_mb, 2),
             "monthly_hard_cap_mb": hard_cap_mb,
             "egress_percentage": round((monthly_mb / hard_cap_mb) * 100, 1),

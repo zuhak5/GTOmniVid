@@ -64,11 +64,14 @@ async def cmd_quota(message: Message, quota_ledger: QuotaLedger) -> None:
         "hard_cap": "🔴 Hard Cap (Direct Stream Link Only)"
     }.get(stats["egress_tier"], "🟢 Normal")
 
+    rem_display = stats["user_remaining_today"]
+    remaining_text = "Unlimited" if rem_display == "Unlimited" else f"{rem_display} downloads"
+
     text = (
         "📊 <b>GTOmniVid Free Tier Resource Monitor</b>\n\n"
         "<b>Your Daily Fair Quota:</b>\n"
         f"• Downloads today: <b>{stats['user_downloads_today']} / {stats['user_daily_limit']}</b>\n"
-        f"• Remaining today: <b>{stats['user_remaining_today']} downloads</b>\n\n"
+        f"• Remaining today: <b>{remaining_text}</b>\n\n"
         "<b>Global Monthly Bandwidth (GCP Free Tier):</b>\n"
         f"• Consumed egress: <b>{stats['monthly_egress_mb']:.1f} MB / {stats['monthly_hard_cap_mb']} MB</b> ({stats['egress_percentage']}%)\n"
         f"• System status: <b>{tier_emoji}</b>\n\n"

@@ -44,12 +44,12 @@ class SSRFError(SecurityError):
 
 # Stage 2: Strict Regex Whitelist for Supported Media Platforms
 ALLOWED_DOMAIN_PATTERNS = [
-    re.compile(r"^(?:[a-zA-Z0-9-]+\.)?youtube\.com$", re.IGNORECASE),
+    re.compile(r"^(?:[a-zA-Z0-9-]+\.)*youtube\.com$", re.IGNORECASE),
     re.compile(r"^youtu\.be$", re.IGNORECASE),
-    re.compile(r"^(?:[a-zA-Z0-9-]+\.)?tiktok\.com$", re.IGNORECASE),
-    re.compile(r"^(?:[a-zA-Z0-9-]+\.)?instagram\.com$", re.IGNORECASE),
+    re.compile(r"^(?:[a-zA-Z0-9-]+\.)*tiktok\.com$", re.IGNORECASE),
+    re.compile(r"^(?:[a-zA-Z0-9-]+\.)*instagram\.com$", re.IGNORECASE),
     re.compile(r"^instagr\.am$", re.IGNORECASE),
-    re.compile(r"^(?:[a-zA-Z0-9-]+\.)?facebook\.com$", re.IGNORECASE),
+    re.compile(r"^(?:[a-zA-Z0-9-]+\.)*facebook\.com$", re.IGNORECASE),
     re.compile(r"^fb\.watch$", re.IGNORECASE),
     re.compile(r"^fb\.com$", re.IGNORECASE),
 ]

@@ -196,6 +196,6 @@ class QuotaLedger:
             "user_remaining_today": "Unlimited" if is_unlimited else max(0, self.user_daily_quota - user_downloads),
             "monthly_egress_mb": round(monthly_mb, 2),
             "monthly_hard_cap_mb": hard_cap_mb,
-            "egress_percentage": round((monthly_mb / hard_cap_mb) * 100, 1),
+            "egress_percentage": round((monthly_mb / hard_cap_mb) * 100, 1) if hard_cap_mb > 0 else 0.0,
             "egress_tier": current_tier.value
         }

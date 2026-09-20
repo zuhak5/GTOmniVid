@@ -101,10 +101,12 @@ async def main() -> None:
                     btn = InlineKeyboardMarkup(inline_keyboard=[[
                         InlineKeyboardButton(text="▶️ Stream Directly (0 MB Egress)", url=result.direct_url)
                     ]])
+                    import html
+                    safe_title = html.escape((job_request.title or "Media")[:400])
                     await bot.edit_message_text(
                         text=(
                             f"🌐 <b>Direct Stream Mode</b>\n\n"
-                            f"🎬 <b>{job_request.title}</b>\n\n"
+                            f"🎬 <b>{safe_title}</b>\n\n"
                             f"Tap below to stream directly from the platform CDN at <b>0 MB</b> cloud egress cost:"
                         ),
                         chat_id=job_request.chat_id,

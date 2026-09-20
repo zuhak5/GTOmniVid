@@ -30,8 +30,13 @@ async def handle_media_url(
     user_id = message.from_user.id if message.from_user else 0
     raw_text = message.text or ""
 
-    # Extract first URL from message text
-    url_match = raw_text.strip().split()[0]
+    # Robust URL extraction: handles messages with leading/trailing text and strips trailing punctuation
+    import html
+    import re
+    url_match_obj = re.search(r"https?://[^\s]+", raw_text)
+    if not url_match_obj:
+        return
+    url_match = url_match_obj.group(0).rstrip(".,;!?)>]\'\"")
 
     # Stage 1-3 Security Validation (Protocol, Domain whitelist, DNS SSRF guard)
     clean_url = await validate_media_url(url_match)
@@ -82,9 +87,9 @@ async def handle_media_url(
                 )
             ]
 
-        # Generate short cache key and cache formats
+        # Generate short cache key and cache formats with title
         short_key = uuid.uuid4().hex[:8]
-        cache_format_options(short_key, available_formats, clean_url)
+        cache_format_options(short_key, available_formats, clean_url, metadata.title)
 
         # Build inline keyboard
         keyboard = build_format_keyboard(available_formats, short_key)
@@ -93,10 +98,14 @@ async def handle_media_url(
         duration_sec = metadata.duration_seconds % 60
         time_str = f"{duration_min}:{duration_sec:02d}" if metadata.duration_seconds > 0 else "N/A"
 
+        # Safely escape HTML entities in title and uploader to prevent entity parse errors
+        safe_title = html.escape(metadata.title[:300])
+        safe_uploader = html.escape((metadata.uploader or "Unknown")[:100])
+
         caption = (
-            f"🎬 <b>{metadata.title}</b>\n\n"
+            f"🎬 <b>{safe_title}</b>\n\n"
             f"⏱ <b>Duration:</b> {time_str}\n"
-            f"👤 <b>Creator:</b> {metadata.uploader or 'Unknown'}\n\n"
+            f"👤 <b>Creator:</b> {safe_uploader}\n\n"
             f"👇 <b>Select quality tier to download or stream:</b>"
         )
 

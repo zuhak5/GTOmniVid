@@ -39,7 +39,7 @@ async def handle_format_selection(
         await callback.answer("⚠️ Session expired. Please send the link again.", show_alert=True)
         return
 
-    formats, webpage_url = cached_entry
+    formats, webpage_url, media_title = cached_entry
     idx = callback_data.idx
 
     if idx < 0 or idx >= len(formats):
@@ -62,7 +62,7 @@ async def handle_format_selection(
         message_id=message_id,
         selected_format=selected_format,
         webpage_url=webpage_url,
-        title=selected_format.resolution_label
+        title=media_title
     )
 
     # 5. Enqueue into Semaphore(1) Concurrency Controller

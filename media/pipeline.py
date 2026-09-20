@@ -105,7 +105,7 @@ class MediaPipeline:
                 except Exception as extract_err:
                     logger.warning("FFmpeg audio extraction skipped or failed, using downloaded file: %s", extract_err)
                     if downloaded_file != audio_target:
-                        downloaded_file.rename(audio_target)
+                        downloaded_file.replace(audio_target)
                     final_media_path = audio_target
             else:
                 # Video stream: enforce -c copy -movflags +faststart for native Telegram streaming

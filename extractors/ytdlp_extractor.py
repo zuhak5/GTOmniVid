@@ -52,6 +52,12 @@ class YtdlpExtractor:
 
     def normalize_metadata(self, url: str, platform: str, raw_info: Dict[str, Any]) -> MediaMetadata:
         """Parses raw yt-dlp dictionary into clean MediaMetadata and normalized FormatOptions."""
+        # Handle playlist or multi-entry containers (e.g. YouTube mix, Instagram carousel)
+        if "entries" in raw_info and isinstance(raw_info["entries"], list):
+            valid_entries = [e for e in raw_info["entries"] if e and isinstance(e, dict)]
+            if valid_entries:
+                raw_info = valid_entries[0]
+
         title = raw_info.get("title") or "Media"
         duration = int(raw_info.get("duration") or 0)
         thumbnail = raw_info.get("thumbnail")
@@ -346,12 +352,21 @@ class YtdlpExtractor:
             logger.error("Download failed for %s: %s", url, err)
             raise ExtractionError(f"Stream download failed: {err}") from err
 
-        # Identify downloaded file in output_dir
-        downloaded_files = list(output_dir.glob("*.*"))
-        if not downloaded_files:
+        # Identify downloaded file in output_dir (filter out .part, .temp, .ytdl, metadata files)
+        ignored_exts = {".part", ".ytdl", ".temp", ".aria2", ".json", ".txt", ".vtt", ".srt"}
+        valid_files = [
+            f for f in output_dir.glob("*.*")
+            if f.is_file() and f.suffix.lower() not in ignored_exts and f.stat().st_size > 0
+        ]
+        if not valid_files:
+            # Fallback to any non-empty file
+            valid_files = [f for f in output_dir.glob("*.*") if f.is_file() and f.stat().st_size > 0]
+        if not valid_files:
             raise ExtractionError(f"No file produced in {output_dir} after download.")
 
-        return downloaded_files[0]
+        # Pick the largest completed file (prevents picking thumbnail or metadata leftover)
+        valid_files.sort(key=lambda x: x.stat().st_size, reverse=True)
+        return valid_files[0]
 
     def _run_ytdlp_download(self, url: str, opts: Dict[str, Any]) -> None:
         """Synchronous call to yt_dlp.YoutubeDL for binary downloading."""

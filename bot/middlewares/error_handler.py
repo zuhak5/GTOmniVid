@@ -27,10 +27,10 @@ class GlobalErrorHandler(BaseMiddleware):
         except SecurityError as sec_err:
             logger.warning("Security violation: %s", sec_err)
             err_msg = str(sec_err)
-            if "DNS resolution failed" in err_msg:
+            if "DNS resolution failed" in err_msg or "DNS resolution timed out" in err_msg:
                 await self._respond_error(
                     event,
-                    "⚠️ Could not resolve domain name (DNS lookup failed). "
+                    "⚠️ Could not resolve domain name (DNS lookup failed/timed out). "
                     "If using short links (like vt.tiktok.com), please try sending the full browser link."
                 )
             else:

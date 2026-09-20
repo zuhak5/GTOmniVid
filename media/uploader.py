@@ -126,7 +126,9 @@ class TelegramUploader:
         media_input = FSInputFile(media_path, filename=media_path.name)
         thumb_input = FSInputFile(thumbnail_path) if (thumbnail_path and thumbnail_path.exists()) else None
 
-        caption = f"🎬 <b>{title}</b>\n\n⚡ <i>Delivered via GTOmniVid</i>"
+        import html
+        safe_title = html.escape((title or "Media")[:400])
+        caption = f"🎬 <b>{safe_title}</b>\n\n⚡ <i>Delivered via GTOmniVid</i>"
 
         duration = stream_info.duration_seconds if stream_info else None
 

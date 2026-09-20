@@ -40,7 +40,7 @@ async def cmd_help(message: Message) -> None:
     text = (
         "📖 <b>How to Use GTOmniVid:</b>\n\n"
         "1. <b>Send a Link:</b> Paste any public YouTube, TikTok, Instagram, or Facebook link.\n"
-        "2. <b>Select Quality:</b> Choose from 1080p Full HD, 720p HD, 480p SD, or Audio (M4A).\n"
+        "2. <b>Select Quality:</b> Choose your preferred resolution (4K, 2K, 1080p, 720p, 480p, 360p, 240p, 144p) or Audio (M4A).\n"
         "3. <b>Direct Link:</b> If you want to stream directly without consuming bot upload bandwidth, "
         "choose <b>Direct Link</b>.\n\n"
         "<b>Commands:</b>\n"

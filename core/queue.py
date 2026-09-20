@@ -181,6 +181,7 @@ class ConcurrencyController:
                     self._waiting_list.remove(job)
 
                 if job.cancel_event.is_set() or job.status == JobStatus.CANCELLED:
+                    self._all_jobs.pop(job.request.job_id, None)
                     self.queue.task_done()
                     continue
 
@@ -208,6 +209,7 @@ class ConcurrencyController:
                             job.future.set_exception(err)
                         logger.exception("Job %s failed: %s", job.request.job_id, err)
                     finally:
+                        self._all_jobs.pop(job.request.job_id, None)
                         self._active_job = None
                         self.queue.task_done()
 

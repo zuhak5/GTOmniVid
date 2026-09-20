@@ -62,16 +62,17 @@ def test_build_format_keyboard():
 
 
 def test_format_options_cache():
-    """Verify format caching and retrieval by short key."""
+    """Verify format caching and retrieval by short key, including title."""
     formats = [
         FormatOption(format_id="140", tier=FormatTier.AUDIO, resolution_label="Audio")
     ]
-    cache_format_options("key_xyz", formats, "https://youtube.com/watch?v=123")
+    cache_format_options("key_xyz", formats, "https://youtube.com/watch?v=123", "Sample Video Title")
 
     entry = get_cached_formats("key_xyz")
     assert entry is not None
-    cached_formats, url = entry
+    cached_formats, url, title = entry
     assert len(cached_formats) == 1
     assert url == "https://youtube.com/watch?v=123"
+    assert title == "Sample Video Title"
 
     assert get_cached_formats("non_existent") is None

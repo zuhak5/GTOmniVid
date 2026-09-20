@@ -19,22 +19,27 @@ class FormatCallbackData(CallbackData, prefix="gtfmt"):
     idx: int      # Index in format list (-1 for cancel)
 
 
-# In-memory short cache mapping short_key -> List[FormatOption]
-_FORMAT_CACHE: Dict[str, tuple[float, List[FormatOption], str]] = {}
+# In-memory short cache mapping short_key -> (timestamp, formats, webpage_url, title)
+_FORMAT_CACHE: Dict[str, tuple[float, List[FormatOption], str, str]] = {}
 
 
-def cache_format_options(short_key: str, formats: List[FormatOption], webpage_url: str) -> None:
-    """Stores extracted format options for callback retrieval."""
+def cache_format_options(
+    short_key: str,
+    formats: List[FormatOption],
+    webpage_url: str,
+    title: str = "Media"
+) -> None:
+    """Stores extracted format options and media title for callback retrieval."""
     now = time.monotonic()
-    _FORMAT_CACHE[short_key] = (now, formats, webpage_url)
+    _FORMAT_CACHE[short_key] = (now, formats, webpage_url, title)
     _prune_format_cache(now)
 
 
-def get_cached_formats(short_key: str) -> Optional[tuple[List[FormatOption], str]]:
-    """Retrieves cached formats and webpage_url by short_key."""
+def get_cached_formats(short_key: str) -> Optional[tuple[List[FormatOption], str, str]]:
+    """Retrieves cached formats, webpage_url, and title by short_key."""
     entry = _FORMAT_CACHE.get(short_key)
     if entry:
-        return entry[1], entry[2]
+        return entry[1], entry[2], entry[3]
     return None
 
 

@@ -7,7 +7,7 @@ from config.settings import Settings, get_settings
 
 def test_settings_defaults():
     """Verify production Always-Free default parameters."""
-    settings = Settings()
+    settings = Settings(_env_file=None)
     assert settings.EGRESS_HARD_CAP_MB == 900
     assert settings.EGRESS_WARN_CAP_MB == 850
     assert settings.USER_DAILY_QUOTA == 3

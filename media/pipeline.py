@@ -117,8 +117,20 @@ class MediaPipeline:
 
             if not is_audio:
                 target_thumb = workspace_dir / "thumb.jpg"
-                thumb_path = await self.ffmpeg.extract_thumbnail(final_media_path, target_thumb)
-                info = await self.ffmpeg.inspect_media(final_media_path)
+                try:
+                    thumb_path = await self.ffmpeg.extract_thumbnail(final_media_path, target_thumb)
+                except Exception as thumb_err:
+                    logger.warning("Thumbnail extraction skipped or failed: %s", thumb_err)
+                    thumb_path = None
+
+                try:
+                    info = await self.ffmpeg.inspect_media(final_media_path)
+                except Exception as probe_err:
+                    logger.warning("Media probe skipped or failed: %s", probe_err)
+                    info = MediaStreamInfo(
+                        duration_seconds=0,
+                        size_bytes=final_media_path.stat().st_size if final_media_path.exists() else 0
+                    )
             else:
                 info = MediaStreamInfo(
                     duration_seconds=0,

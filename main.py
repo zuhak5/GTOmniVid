@@ -88,45 +88,63 @@ async def main() -> None:
                 )
             )
 
-        async with media_pipeline.process_job(
-            job_id=job_request.job_id,
-            webpage_url=job_request.webpage_url,
-            selected_format=job_request.selected_format,
-            cancel_event=cancel_event,
-            progress_callback=progress_cb
-        ) as result:
-            if result.is_direct_link and result.direct_url:
-                # Direct Stream Link mode (0 MB egress consumed)
-                btn = InlineKeyboardMarkup(inline_keyboard=[[
-                    InlineKeyboardButton(text="▶️ Stream Directly (0 MB Egress)", url=result.direct_url)
-                ]])
+        try:
+            async with media_pipeline.process_job(
+                job_id=job_request.job_id,
+                webpage_url=job_request.webpage_url,
+                selected_format=job_request.selected_format,
+                cancel_event=cancel_event,
+                progress_callback=progress_cb
+            ) as result:
+                if result.is_direct_link and result.direct_url:
+                    # Direct Stream Link mode (0 MB egress consumed)
+                    btn = InlineKeyboardMarkup(inline_keyboard=[[
+                        InlineKeyboardButton(text="▶️ Stream Directly (0 MB Egress)", url=result.direct_url)
+                    ]])
+                    await bot.edit_message_text(
+                        text=(
+                            f"🌐 <b>Direct Stream Mode</b>\n\n"
+                            f"🎬 <b>{job_request.title}</b>\n\n"
+                            f"Tap below to stream directly from the platform CDN at <b>0 MB</b> cloud egress cost:"
+                        ),
+                        chat_id=job_request.chat_id,
+                        message_id=job_request.message_id,
+                        reply_markup=btn,
+                        parse_mode="HTML"
+                    )
+                    return True
+
+                # Native delivery to Telegram
+                platform = identify_platform(job_request.webpage_url)
+                assert result.media_path is not None
+                return await uploader.deliver_media(
+                    chat_id=job_request.chat_id,
+                    user_id=job_request.user_id,
+                    progress_msg_id=job_request.message_id,
+                    media_path=result.media_path,
+                    thumbnail_path=result.thumbnail_path,
+                    stream_info=result.stream_info,
+                    title=job_request.title,
+                    platform=platform,
+                    is_audio=result.is_audio
+                )
+        except asyncio.CancelledError:
+            logger.info("Job %s was cancelled.", job_request.job_id)
+            return False
+        except Exception as job_err:
+            logger.exception("Error processing job %s: %s", job_request.job_id, job_err)
+            try:
+                import html
+                err_msg = html.escape(str(job_err))
                 await bot.edit_message_text(
-                    text=(
-                        f"🌐 <b>Direct Stream Mode</b>\n\n"
-                        f"🎬 <b>{job_request.title}</b>\n\n"
-                        f"Tap below to stream directly from the platform CDN at <b>0 MB</b> cloud egress cost:"
-                    ),
+                    text=f"⚠️ <b>Download Error</b>\n\nCould not complete processing: <code>{err_msg}</code>",
                     chat_id=job_request.chat_id,
                     message_id=job_request.message_id,
-                    reply_markup=btn,
                     parse_mode="HTML"
                 )
-                return True
-
-            # Native delivery to Telegram
-            platform = identify_platform(job_request.webpage_url)
-            assert result.media_path is not None
-            return await uploader.deliver_media(
-                chat_id=job_request.chat_id,
-                user_id=job_request.user_id,
-                progress_msg_id=job_request.message_id,
-                media_path=result.media_path,
-                thumbnail_path=result.thumbnail_path,
-                stream_info=result.stream_info,
-                title=job_request.title,
-                platform=platform,
-                is_audio=result.is_audio
-            )
+            except Exception as notify_err:
+                logger.warning("Failed to send error notification to user: %s", notify_err)
+            return False
 
     concurrency_controller.set_handler(worker_job_handler)
 

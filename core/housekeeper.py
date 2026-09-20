@@ -90,22 +90,24 @@ class HousekeeperService:
             total, used, free = shutil.disk_usage(self.scratch_dir)
             free_mb = free // (1024 * 1024)
             is_healthy = free_mb >= self.min_free_mb
+            emergency_threshold = max(200, int(self.min_free_mb * 0.6))
 
-            if free_mb < 2000:
+            if free_mb < emergency_threshold:
                 logger.critical(
-                    "EMERGENCY: Extremely low disk space on %s! Free: %d MB (Critical limit: 2000 MB)",
+                    "EMERGENCY: Extremely low disk space on %s! Free: %d MB (Critical limit: %d MB)",
                     self.scratch_dir,
-                    free_mb
+                    free_mb,
+                    emergency_threshold
                 )
             elif not is_healthy:
                 logger.warning(
-                    "Low disk space on %s: Free: %d MB (Required: %d MB)",
+                    "Disk space warning on %s: %d MB free (Configured minimum: %d MB)",
                     self.scratch_dir,
                     free_mb,
                     self.min_free_mb
                 )
             else:
-                logger.debug("Disk space healthy on %s: Free: %d MB", self.scratch_dir, free_mb)
+                logger.debug("Disk space healthy on %s: %d MB free", self.scratch_dir, free_mb)
 
             return {
                 "free_mb": free_mb,
